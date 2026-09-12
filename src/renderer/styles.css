@@ -411,6 +411,18 @@ button.danger-btn.confirm {
 }
 
 /* 分镜导出前的工序选择与顺序预览 */
+.board-actions {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 6px;
+}
+
+.board-actions button {
+  flex: 1;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
 .board-list {
   list-style: none;
   margin: 0 0 8px;

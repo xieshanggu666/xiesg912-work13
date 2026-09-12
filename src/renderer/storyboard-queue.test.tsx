@@ -99,6 +99,13 @@ function boardMoveButton(container: HTMLElement, row: number, dir: 'up' | 'down'
   return group.querySelectorAll('button')[dir === 'up' ? 0 : 1]
 }
 
+function boardActionButton(container: HTMLElement, text: string): HTMLButtonElement {
+  const group = container.querySelector('.board-actions')
+  const btn = group && Array.from(group.querySelectorAll('button')).find((b) => b.textContent === text)
+  if (!btn) throw new Error(`找不到分镜操作按钮「${text}」`)
+  return btn
+}
+
 /** 右侧快照列表的标题顺序（新 → 旧） */
 function snapTitles(container: HTMLElement): string[] {
   return Array.from(container.querySelectorAll('.snap-list .snap-info b')).map(
@@ -194,6 +201,40 @@ describe('分镜导出前的工序选择与顺序预览（DOM 级）', () => {
     expect(boardSeqs(container)).toEqual(['–', '1', '2', '3'])
   })
 
+  it('全不选与全选只改勾选、不动顺序，且不影响右侧列表与存储数据', () => {
+    act(() => click(boardActionButton(container, '全不选')))
+    for (const box of container.querySelectorAll<HTMLInputElement>(
+      '.board-list input[type="checkbox"]'
+    )) {
+      expect(box.checked).toBe(false)
+    }
+    expect(boardSeqs(container)).toEqual(['–', '–', '–'])
+    expect(container.textContent).toContain('已选 0 / 3 个工序')
+
+    act(() => click(boardActionButton(container, '全选')))
+    expect(boardTitles(container)).toEqual(['节点A', '节点B', '节点C'])
+    expect(boardSeqs(container)).toEqual(['1', '2', '3'])
+    // 右侧列表与存储数据不受批量勾选影响
+    expect(snapTitles(container)).toEqual(['节点C', '节点B', '节点A'])
+    expect(storedTitles()).toEqual(['节点A', '节点B', '节点C'])
+  })
+
+  it('恢复时间顺序按创建时间重排，同时保留各节点当前勾选状态', () => {
+    act(() => click(boardMoveButton(container, 2, 'up'))) // A C B
+    act(() => click(boardMoveButton(container, 0, 'down'))) // C A B
+    act(() => boardCheckbox(container, 2).click()) // 取消当前队尾 节点B
+
+    act(() => click(boardActionButton(container, '恢复时间顺序')))
+
+    expect(boardTitles(container)).toEqual(['节点A', '节点B', '节点C'])
+    // 节点B 的取消勾选被保留，其余仍选中
+    expect(boardSeqs(container)).toEqual(['1', '–', '2'])
+    expect(container.textContent).toContain('已选 2 / 3 个工序')
+    // 右侧列表与存储数据均不受影响
+    expect(snapTitles(container)).toEqual(['节点C', '节点B', '节点A'])
+    expect(storedTitles()).toEqual(['节点A', '节点B', '节点C'])
+  })
+
   it('全部取消勾选后点导出给出提示，不进入合成', () => {
     for (let i = 0; i < 3; i++) {
       act(() => boardCheckbox(container, i).click())
@@ -214,6 +255,9 @@ describe('分镜导出前的工序选择与顺序预览（DOM 级）', () => {
     // 合成进行中：预览控件、作品名输入与导出按钮全部锁定
     expect(boardCheckbox(container, 0).disabled).toBe(true)
     expect(boardMoveButton(container, 0, 'down').disabled).toBe(true)
+    for (const text of ['全选', '全不选', '恢复时间顺序']) {
+      expect(boardActionButton(container, text).disabled).toBe(true)
+    }
     expect(container.querySelector('.board-list')?.className).toContain('locked')
     const titleInput = container.querySelector<HTMLInputElement>('.storyboard .snap-form input')
     expect(titleInput?.disabled).toBe(true)
@@ -228,6 +272,9 @@ describe('分镜导出前的工序选择与顺序预览（DOM 级）', () => {
     // 完成后预览恢复可编辑
     expect(boardCheckbox(container, 0).disabled).toBe(false)
     expect(boardMoveButton(container, 0, 'down').disabled).toBe(false)
+    for (const text of ['全选', '全不选', '恢复时间顺序']) {
+      expect(boardActionButton(container, text).disabled).toBe(false)
+    }
     expect(container.querySelector('.board-list')?.className).not.toContain('locked')
     expect(container.querySelector('.toast')?.textContent).toContain('分镜已导出')
   })

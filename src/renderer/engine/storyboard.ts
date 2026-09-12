@@ -46,9 +46,46 @@ export function reconcileBoardQueue(
   const known = new Set(kept.map((p) => p.id))
   const fresh = records
     .filter((r): r is { id: number; created_at: number } => r.id != null && !known.has(r.id))
-    .sort((a, b) => a.created_at - b.created_at)
+    .sort((a, b) =>
+      a.created_at !== b.created_at ? a.created_at - b.created_at : a.id - b.id
+    )
     .map((r) => ({ id: r.id, on: true }))
   return [...kept, ...fresh]
+}
+
+/** 批量设置勾选状态：全选 / 全不选，顺序保持不变，不改原数组 */
+export function setBoardAllPicked(picks: BoardPick[], on: boolean): BoardPick[] {
+  return picks.map((p) => (p.on === on ? p : { ...p, on }))
+}
+
+/**
+ * 恢复时间顺序（纯函数）：按快照创建时间从早到晚排列。
+ * - 各节点当前的勾选状态原样保留；
+ * - 时间相同时使用稳定规则排序：先按创建时间，再按 id 升序，
+ *   id 缺失的记录排在最后（与初始入队顺序一致）；
+ * - 队列中找不到对应记录的节点保持原相对顺序追加到队尾。
+ */
+export function restoreBoardOrder(
+  picks: BoardPick[],
+  records: { id: number | null; created_at: number }[]
+): BoardPick[] {
+  const timeById = new Map<number, number>()
+  for (const r of records) {
+    if (r.id != null) timeById.set(r.id, r.created_at)
+  }
+  return picks
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => {
+      const ta = timeById.get(a.p.id)
+      const tb = timeById.get(b.p.id)
+      if (ta == null && tb == null) return a.i - b.i
+      if (ta == null) return 1
+      if (tb == null) return -1
+      if (ta !== tb) return ta - tb
+      if (a.p.id !== b.p.id) return a.p.id - b.p.id
+      return a.i - b.i
+    })
+    .map(({ p }) => p)
 }
 
 /** 将队列中 index 处节点上移（dir=-1）/下移（dir=1）一位；越界时原样返回，不改原数组 */

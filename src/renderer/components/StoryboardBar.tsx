@@ -5,7 +5,13 @@ import { restoreGlass } from '../engine/geometry'
 import { DEFAULT_INPUT, measure } from '../engine/engine'
 import { describeGlass } from '../engine/describe'
 import { exportStoryboard, saveStoryboardFile } from '../state/storage'
-import { moveBoardItem, reconcileBoardQueue, type BoardPick } from '../engine/storyboard'
+import {
+  moveBoardItem,
+  reconcileBoardQueue,
+  restoreBoardOrder,
+  setBoardAllPicked,
+  type BoardPick
+} from '../engine/storyboard'
 
 export function StoryboardBar(): JSX.Element {
   const snapshots = useStudio((s) => s.snapshots)
@@ -42,6 +48,16 @@ export function StoryboardBar(): JSX.Element {
 
   const move = (index: number, dir: -1 | 1): void => {
     setQueue((q) => moveBoardItem(q, index, dir))
+  }
+
+  // 批量勾选只作用于本次分镜队列，不改写快照数据
+  const selectAll = (on: boolean): void => {
+    setQueue((q) => setBoardAllPicked(q, on))
+  }
+
+  // 恢复按创建时间从早到晚的顺序，各节点当前勾选状态保留
+  const restoreOrder = (): void => {
+    setQueue((q) => restoreBoardOrder(q, snapshots.map((m) => m.record)))
   }
 
   const exportBoard = async (): Promise<void> => {
@@ -87,6 +103,21 @@ export function StoryboardBar(): JSX.Element {
       </div>
       {queue.length > 0 ? (
         <>
+          <div className="board-actions">
+            <button onClick={() => selectAll(true)} disabled={busy} title="勾选全部工序节点">
+              全选
+            </button>
+            <button onClick={() => selectAll(false)} disabled={busy} title="取消全部勾选">
+              全不选
+            </button>
+            <button
+              onClick={restoreOrder}
+              disabled={busy}
+              title="按创建时间从早到晚重新排列，保留当前勾选"
+            >
+              恢复时间顺序
+            </button>
+          </div>
           <ul className={busy ? 'board-list locked' : 'board-list'}>
             {queue.map((q, i) => {
               const meta = byId.get(q.id)
@@ -121,8 +152,9 @@ export function StoryboardBar(): JSX.Element {
             })}
           </ul>
           <p className="muted small">
-            已选 {picked.length} / {queue.length} 个工序，默认按创建时间从早到晚排列，可取消勾选或用
-            ↑↓ 调整；编号以最终顺序导出，不影响右侧快照列表；合成期间预览锁定，导出内容与预览一致。
+            已选 {picked.length} / {queue.length} 个工序，默认按创建时间从早到晚排列，可全选、全不选、
+            恢复时间顺序，或用 ↑↓ 调整、逐项取消勾选；编号以最终顺序导出，不影响右侧快照列表；
+            合成和保存期间预览锁定，导出内容与预览一致。
           </p>
         </>
       ) : (
